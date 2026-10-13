@@ -1,7 +1,10 @@
-name: update-tap
+name: published
 
-# Publishing a stable release points the Homebrew cask in aleksskoz/homebrew-tap
-# at it. TAP_DEPLOY_KEY is a write deploy key of that repository.
+# Runs when a release is published:
+# - appcast: puts the release notes into the release's Sparkle appcast, which
+#   installed apps read from releases/latest/download/appcast.xml;
+# - cask: points the Homebrew cask in aleksskoz/homebrew-tap at a stable
+#   release. TAP_DEPLOY_KEY is a write deploy key of that repository.
 on:
   release:
     types: [published]
@@ -10,10 +13,42 @@ permissions:
   contents: read
 
 concurrency:
-  group: update-tap
+  group: published-${{ github.event.release.tag_name }}
   cancel-in-progress: false
 
 jobs:
+  appcast:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # replaces the appcast asset
+    steps:
+      - name: Add the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+          BODY: ${{ github.event.release.body }}
+        run: |
+          set -eu
+          cd "$RUNNER_TEMP"
+          if ! gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern appcast.xml; then
+            echo "no appcast in $TAG"
+            exit 0
+          fi
+          # The notes without the install instructions and editing hints.
+          printf '%s\n' "$BODY" | sed '/^## Install/,$d' | sed '/^<!--.*-->$/d' > notes.md
+          gh api markdown -f mode=gfm -f context="$GITHUB_REPOSITORY" -F text=@notes.md > notes.html
+          python3 - <<'PY'
+          import re
+          html = open("notes.html").read().replace("]]>", "]]]]><![CDATA[>")
+          xml = open("appcast.xml").read()
+          xml = re.sub(r"\s*<description>.*?</description>", "", xml, flags=re.S)
+          xml = xml.replace("</title>\n      <pubDate>",
+                            "</title>\n      <description><![CDATA[" + html + "]]></description>\n      <pubDate>", 1)
+          open("appcast.xml", "w").write(xml)
+          PY
+          grep -q "<description>" appcast.xml
+          gh release upload "$TAG" appcast.xml --repo "$GITHUB_REPOSITORY" --clobber
+
   cask:
     if: ${{ !github.event.release.prerelease }}
     runs-on: ubuntu-latest

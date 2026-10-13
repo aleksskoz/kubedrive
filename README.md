@@ -31,12 +31,18 @@ The app is signed with a Developer ID and notarized by Apple.
 ## Getting started
 
 KubeDrive reads your kubeconfig the same way kubectl does (`$KUBECONFIG` or `~/.kube/config`)
-and talks only to your clusters. It sends nothing anywhere else.
+and talks only to your clusters. The one exception is the update check below.
 
 ## Updating
 
-KubeDrive doesn't update itself yet. Update with `brew upgrade --cask kubedrive`, or download
-the new DMG from [Releases](https://github.com/aleksskoz/kubedrive/releases).
+From version 0.2.0 KubeDrive updates itself. On its second launch it asks whether to check for
+updates automatically; if you agree, it looks at this repository's latest release once a day,
+without sending any data about you or your clusters. You can also choose
+**KubeDrive → Check for Updates…** at any time. Every update is signed, and KubeDrive refuses
+one whose signature doesn't match.
+
+Version 0.1.0 can't update itself: download the new DMG from
+[Releases](https://github.com/aleksskoz/kubedrive/releases) once, or run `brew upgrade --cask kubedrive`.
 
 ## Uninstalling
 
