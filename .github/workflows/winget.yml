@@ -1,0 +1,94 @@
+name: winget
+
+# Submits the Windows installers of a stable release to winget
+# (microsoft/winget-pkgs, package AKStudio.KubeDrive): fills the manifests in
+# .github/winget with the version and the installers' SHA-256 and opens a pull
+# request there with Komac. Runs when a release is published; a manual run
+# submits a given tag, or with "dry run" only shows the manifests.
+# WINGET_TOKEN is a classic token with the public_repo scope of the account
+# whose fork of winget-pkgs carries the pull request.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v1.2.3
+        required: true
+      dry_run:
+        description: Only show the manifests
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: winget-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  KOMAC_VERSION: 2.17.1
+  KOMAC_SHA256: e694e79cd451afabf47bead66ed34586fef4814f7b94e4b61a098f419978d5d7
+
+jobs:
+  winget:
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Fill the manifests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -eu
+          version="${TAG#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag $TAG is not a stable version like v1.2.3"
+            exit 1
+          fi
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "KubeDrive-$version-windows.sha256" --dir "$RUNNER_TEMP"
+          sum() { awk -v f="KubeDrive-$version-$1-setup.exe" '$2 == f || $2 == "*" f { print $1 }' \
+            "$RUNNER_TEMP/KubeDrive-$version-windows.sha256"; }
+          x64=$(sum x64 | tr a-f A-F) arm64=$(sum arm64 | tr a-f A-F)
+          for s in "$x64" "$arm64"; do
+            printf '%s' "$s" | grep -Eq '^[0-9A-F]{64}$' || { echo "::error::No SHA-256 for an installer"; exit 1; }
+          done
+          date=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json publishedAt -q '.publishedAt[0:10]')
+          out="$RUNNER_TEMP/manifests/AKStudio.KubeDrive/$version"
+          mkdir -p "$out"
+          for f in .github/winget/*.yaml; do
+            sed -e "s/@VERSION@/$version/g" -e "s/@DATE@/$date/" \
+                -e "s/@SHA256_X64@/$x64/" -e "s/@SHA256_ARM64@/$arm64/" "$f" > "$out/$(basename "$f")"
+          done
+          if grep -rn '@[A-Z0-9_]*@' "$out"; then echo "::error::Unfilled placeholder"; exit 1; fi
+          for f in "$out"/*.yaml; do echo "::group::$(basename "$f")"; cat "$f"; echo "::endgroup::"; done
+          echo "MANIFESTS=$out" >> "$GITHUB_ENV"
+
+      - name: Check the installer URLs
+        run: |
+          set -eu
+          for url in $(grep -ho 'https://github.com/[^ ]*setup.exe' "$MANIFESTS"/*.installer.yaml); do
+            curl -fsSIL -o /dev/null "$url" || { echo "::error::$url is not reachable"; exit 1; }
+          done
+
+      - name: Submit to winget-pkgs
+        if: ${{ github.event_name == 'release' || !inputs.dry_run }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          set -eu
+          if [ -z "$GITHUB_TOKEN" ]; then
+            echo "::warning::WINGET_TOKEN is not set; nothing submitted"
+            exit 0
+          fi
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "https://github.com/russellbanks/Komac/releases/download/v$KOMAC_VERSION/komac-$KOMAC_VERSION-x86_64-unknown-linux-gnu.tar.gz"
+          echo "$KOMAC_SHA256  komac-$KOMAC_VERSION-x86_64-unknown-linux-gnu.tar.gz" | sha256sum -c -
+          tar -xzf "komac-$KOMAC_VERSION-x86_64-unknown-linux-gnu.tar.gz"
+          komac=$(find . -name komac -type f -perm -u+x | head -1)
+          "$komac" submit "$MANIFESTS" --yes | tee komac.log
+          grep -q 'github.com/microsoft/winget-pkgs/pull/' komac.log
