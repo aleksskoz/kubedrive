@@ -5,8 +5,6 @@ name: windows-smoke
 # Apps & features entry and the kubedrive:// protocol, starts the app and the
 # MCP bridge, takes a screenshot (the run's artifacts) and uninstalls.
 on:
-  push:
-    branches: [windows-smoke]
   release:
     types: [published]
   workflow_dispatch:
@@ -32,7 +30,7 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ github.event.release.tag_name || inputs.tag || 'v0.5.6' }}
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
       ARCH: ${{ matrix.arch }}
     defaults:
       run:
