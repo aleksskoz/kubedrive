@@ -1,0 +1,104 @@
+name: windows-smoke
+
+# Installs a release's Windows setup.exe on GitHub's Windows runners, x64 and
+# Arm, the way a user would (silently, machine-wide): checks the files, the
+# Apps & features entry and the kubedrive:// protocol, starts the app and the
+# MCP bridge, takes a screenshot (the run's artifacts) and uninstalls.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v1.2.3
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      ARCH: ${{ matrix.arch }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Install
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:TAG -replace '^v', ''
+          $setup = "KubeDrive-$version-$env:ARCH-setup.exe"
+          gh release download $env:TAG --repo $env:GITHUB_REPOSITORY --pattern $setup --dir $env:RUNNER_TEMP
+          $p = Start-Process "$env:RUNNER_TEMP\$setup" -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "setup exited with $($p.ExitCode)" }
+
+      - name: Check the installation
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = "$env:ProgramFiles\AKStudio\KubeDrive"
+          foreach ($f in 'kubedrive.exe', 'kubedrive-mcp.exe', 'uninstall.exe') {
+            if (-not (Test-Path "$dir\$f")) { throw "$dir\$f is missing" }
+          }
+          $key = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AKStudioKubeDrive'
+          $entry = Get-ItemProperty $key
+          "Apps & features: $($entry.DisplayName) $($entry.DisplayVersion) by $($entry.Publisher)"
+          if ($entry.DisplayVersion -ne ($env:TAG -replace '^v', '')) { throw "DisplayVersion is $($entry.DisplayVersion)" }
+          $open = (Get-ItemProperty 'Registry::HKEY_CLASSES_ROOT\kubedrive\shell\open\command').'(default)'
+          "kubedrive:// opens $open"
+          if ($open -notlike "*$dir\kubedrive.exe*") { throw 'kubedrive:// is not registered to the app' }
+          # The exe's machine type: 0x8664 x64, 0xAA64 Arm.
+          $b = [IO.File]::ReadAllBytes("$dir\kubedrive.exe")
+          $machine = [BitConverter]::ToUInt16($b, [BitConverter]::ToInt32($b, 0x3C) + 4)
+          $want = @{ x64 = 0x8664; arm64 = 0xAA64 }[$env:ARCH]
+          if ($machine -ne $want) { throw ('kubedrive.exe is for machine 0x{0:X4}' -f $machine) }
+
+      - name: Start the app and the bridge
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = "$env:ProgramFiles\AKStudio\KubeDrive"
+          # The bridge prints its usage and exits 0 on -h.
+          & "$dir\kubedrive-mcp.exe" -h
+          if ($LASTEXITCODE -ne 0) { throw "kubedrive-mcp.exe -h exited with $LASTEXITCODE" }
+          $app = Start-Process "$dir\kubedrive.exe" -PassThru
+          Start-Sleep 20
+          if ($app.HasExited) { throw "kubedrive.exe exited with $($app.ExitCode)" }
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $s = [Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object Drawing.Bitmap $s.Width, $s.Height
+          [Drawing.Graphics]::FromImage($bmp).CopyFromScreen($s.Location, [Drawing.Point]::Empty, $s.Size)
+          $bmp.Save("$env:RUNNER_TEMP\kubedrive-$env:ARCH.png")
+          Get-Process kubedrive | Format-Table Id, ProcessName, WorkingSet64
+          Stop-Process -Name kubedrive -Force
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: screenshot-${{ matrix.arch }}
+          path: ${{ runner.temp }}/kubedrive-${{ matrix.arch }}.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Uninstall
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = "$env:ProgramFiles\AKStudio\KubeDrive"
+          # The uninstaller copies itself to TEMP and returns at once; _?= keeps it in place.
+          $p = Start-Process "$dir\uninstall.exe" -ArgumentList '/S', "_?=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "uninstall exited with $($p.ExitCode)" }
+          if (Test-Path "$dir\kubedrive.exe") { throw 'kubedrive.exe is still there' }
+          if (Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AKStudioKubeDrive') { throw 'the Apps & features entry is still there' }
+          if (Test-Path 'Registry::HKEY_CLASSES_ROOT\kubedrive') { throw 'kubedrive:// is still registered' }
+          'Uninstalled cleanly'
