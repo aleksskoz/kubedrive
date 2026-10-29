@@ -5,15 +5,65 @@
   </picture>
 </h1>
 
-A fast, native-feeling desktop client for Kubernetes, for macOS, Windows and Linux.
+A fast, native desktop client for Kubernetes, for macOS, Windows and Linux: cluster health,
+live resources, logs, terminal, Helm and port-forwarding, driven from the keyboard, with an
+MCP server that lets AI agents work on your clusters without a kubeconfig.
 
-This repository hosts KubeDrive releases and the issue tracker. The source code is not public.
+[Download](https://github.com/aleksskoz/kubedrive/releases/latest) ·
+[Website](https://kubedrive.com) ·
+[Docs](https://kubedrive.com/docs/guide) ·
+[Performance](https://kubedrive.com/performance) ·
+[AI agents](https://kubedrive.com/docs/ai-agents) ·
+[Pricing](https://kubedrive.com/pricing)
+
+![The KubeDrive window: the sidebar with the cluster card and the Workloads section, the pods table of two namespaces, and the details panel of a crashing pod with its diagnosis](assets/kubedrive-window.png)
+
+This repository hosts KubeDrive releases, the issue tracker and the [benchmarks](benchmarks).
+The source code is not public.
+
+## Why KubeDrive
+
+- **Fast at production scale.** 50,000 pods on 470 nodes: first rows in 3 s, the full list in
+  10 s, 428 MB of memory, where `kubectl get pods -A` takes 27 s on the same cluster. KubeDrive
+  asks the API server for tables, not objects, and streams the first page while the rest loads.
+  Numbers, method and the other clients on the
+  [performance page](https://kubedrive.com/performance); scripts and raw results in
+  [`benchmarks/`](benchmarks).
+- **Safe on production, by default.** A cluster whose context name looks like production is
+  protected from the start: a red window frame, and every change asks you to type the object's
+  name. Helm charts install with a dry run first. Actions your RBAC role does not allow are
+  disabled, not hidden.
+- **Nothing to install in the cluster.** KubeDrive reads the kubeconfig you already have, with
+  your SSO sessions and your permissions, and talks to your API servers directly. Cluster data
+  never reaches our servers.
+- **One screen for all clusters**, with their health; diagnosis of crashing pods; metrics from
+  the Prometheus you already run; an upgrade check that lists what the next Kubernetes version
+  breaks; a map of a namespace; a browser extension that opens EKS, GKE, AKS, Argo CD, Grafana
+  and Rancher pages in KubeDrive.
+- **Free** for daily work with two clusters open. [Pro](https://kubedrive.com/pricing) adds
+  unlimited clusters, full Helm, PromQL, aggregated logs, change history and more.
+
+## AI agents without a kubeconfig
+
+KubeDrive serves your clusters to Claude Code, Codex, Cursor, Claude Desktop and any other
+[MCP](https://modelcontextprotocol.io) client. The agent asks KubeDrive; KubeDrive answers with
+the connections it already has. The agent never gets a kubeconfig or a cluster token, sees only
+the clusters you tick, and the server listens on `127.0.0.1` only.
+
+```sh
+claude mcp add --transport http kubedrive http://127.0.0.1:47011/mcp \
+  --header "Authorization: Bearer kd_…"
+```
+
+Reading is free. Changes by agents are part of Pro and every one of them waits for your
+**Allow** in a window with the diff; on a protected cluster you type the object's name. The
+[AI agents guide](https://kubedrive.com/docs/ai-agents) has the setup for each client.
 
 ## Install
 
 **Requirements:** macOS 13 Ventura or later (Apple silicon or Intel); Windows 10 1809 or later
 or Windows 11 (x64 or Arm); Linux with GTK 4 and WebKitGTK 6.0: Debian 13, Ubuntu 24.04,
-Fedora 40 and newer (x64). The [install guide](https://kubedrive.com/docs/install) has the details.
+Fedora 40 and newer (x64). The [install guide](https://kubedrive.com/docs) has the details.
 
 ### macOS
 
