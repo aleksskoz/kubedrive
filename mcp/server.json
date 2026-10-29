@@ -1,0 +1,38 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.aleksskoz/kubedrive",
+  "title": "KubeDrive",
+  "description": "Your Kubernetes clusters for AI agents through the KubeDrive desktop app, without a kubeconfig.",
+  "websiteUrl": "https://kubedrive.com/docs/ai-agents",
+  "repository": {
+    "url": "https://github.com/aleksskoz/kubedrive",
+    "source": "github"
+  },
+  "version": "@VERSION@",
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/aleksskoz/kubedrive/releases/download/v@VERSION@/kubedrive-@VERSION@.mcpb",
+      "fileSha256": "@SHA256@",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "KUBEDRIVE_MCP_TOKEN",
+          "description": "The client token from KubeDrive → AI Agents, after the server is turned on; starts with kd_",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "KUBEDRIVE_MCP_URL",
+          "description": "KubeDrive's MCP endpoint, only if its port was changed",
+          "isRequired": false,
+          "format": "string",
+          "default": "http://127.0.0.1:47011/mcp"
+        }
+      ]
+    }
+  ]
+}
