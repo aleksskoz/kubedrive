@@ -3,8 +3,11 @@ name: winget
 # Submits the Windows installers of a stable release to winget
 # (microsoft/winget-pkgs, package AKStudio.KubeDrive): fills the manifests in
 # .github/winget with the version and the installers' SHA-256 and opens a pull
-# request there with Komac. Runs when a release is published; a manual run
-# submits a given tag, or with "dry run" only shows the manifests.
+# request there with Komac. Until winget has the package, a release moves the
+# open "New package" pull request to its version instead of opening another:
+# each new pull request asks for the CLA again and waits for a moderator anew.
+# Runs when a release is published; a manual run submits a given tag, or with
+# "dry run" only shows the manifests.
 # WINGET_TOKEN is a classic token with the public_repo scope of the account
 # whose fork of winget-pkgs carries the pull request.
 on:
@@ -79,11 +82,48 @@ jobs:
         if: ${{ github.event_name == 'release' || !inputs.dry_run }}
         env:
           GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          GH_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          VERSION: ${{ github.event.release.tag_name || inputs.tag }}
         run: |
           set -eu
+          VERSION="${VERSION#v}"
           if [ -z "$GITHUB_TOKEN" ]; then
             echo "::warning::WINGET_TOKEN is not set; nothing submitted"
             exit 0
+          fi
+          # Not in winget yet, and a "New package" pull request is open: put this
+          # version on its branch in place of the one there.
+          if ! gh api repos/microsoft/winget-pkgs/contents/manifests/a/AKStudio/KubeDrive --silent 2>/dev/null; then
+            pr=$(gh pr list --repo microsoft/winget-pkgs --author @me --state open \
+              --search 'New package: AKStudio.KubeDrive in:title' \
+              --json number,headRefName,headRepositoryOwner,title \
+              -q '[.[] | select(.title | startswith("New package: AKStudio.KubeDrive version "))][0] // empty')
+            if [ -n "$pr" ]; then
+              number=$(jq -r .number <<<"$pr") branch=$(jq -r .headRefName <<<"$pr")
+              owner=$(jq -r .headRepositoryOwner.login <<<"$pr")
+              title="New package: AKStudio.KubeDrive version $VERSION"
+              url="https://github.com/microsoft/winget-pkgs/pull/$number"
+              if [ "$(jq -r .title <<<"$pr")" = "$title" ]; then
+                echo "$url already has $VERSION"
+                exit 0
+              fi
+              dir=manifests/a/AKStudio/KubeDrive
+              git clone --quiet --filter=blob:none --no-checkout --depth 1 --branch "$branch" \
+                "https://x-access-token:$GITHUB_TOKEN@github.com/$owner/winget-pkgs.git" "$RUNNER_TEMP/pkgs"
+              cd "$RUNNER_TEMP/pkgs"
+              git sparse-checkout set "$dir"
+              git checkout --quiet
+              git rm -rq --ignore-unmatch "$dir"
+              mkdir -p "$dir" && cp -R "$MANIFESTS" "$dir/$VERSION"
+              git add "$dir"
+              login=$(gh api user -q .login) id=$(gh api user -q .id)
+              git -c user.name="$login" -c user.email="$id+$login@users.noreply.github.com" \
+                commit --quiet -m "$title"
+              git push --quiet origin "HEAD:$branch"
+              gh pr edit "$number" --repo microsoft/winget-pkgs --title "$title"
+              echo "$url now has $VERSION"
+              exit 0
+            fi
           fi
           cd "$RUNNER_TEMP"
           curl -fsSLO "https://github.com/russellbanks/Komac/releases/download/v$KOMAC_VERSION/komac-$KOMAC_VERSION-x86_64-unknown-linux-gnu.tar.gz"
