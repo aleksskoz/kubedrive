@@ -106,6 +106,12 @@ clusters. You can also check by hand at any time: **KubeDrive → Check for Upda
 
 KubeDrive never changes your kubeconfig, so there is nothing to undo there.
 
+## Benchmarks
+
+[`benchmarks/`](benchmarks) holds the scripts and raw results behind
+[kubedrive.com/performance](https://kubedrive.com/performance): how fast KubeDrive and other
+Kubernetes clients open 50,000 pods. They are MIT-licensed, so you can rerun them yourself.
+
 ## Feedback
 
 Found a bug or missing something? [Open an issue](https://github.com/aleksskoz/kubedrive/issues).
