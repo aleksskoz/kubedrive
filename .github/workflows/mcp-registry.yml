@@ -1,0 +1,94 @@
+name: mcp-registry
+
+# Publishes a stable release's MCP bundle (kubedrive-<version>.mcpb, built by
+# the release) to the official MCP Registry as io.github.aleksskoz/kubedrive:
+# fills mcp/server.json with the version and the bundle's SHA-256 and publishes
+# it with mcp-publisher. The registry keeps metadata only; the bundle stays in
+# the release. Authentication is GitHub Actions OIDC: the registry lets
+# workflows of aleksskoz/* publish under io.github.aleksskoz/*, so no token is
+# stored. Runs when a release is published; a manual run publishes a given tag,
+# or with "dry run" only validates the server.json it would publish.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v1.2.3
+        required: true
+      dry_run:
+        description: Only validate server.json
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcp-registry-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  # A release of github.com/modelcontextprotocol/registry; its Sigstore bundle
+  # is checked before the binary runs.
+  MCP_PUBLISHER_VERSION: v1.8.6
+
+jobs:
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Fill server.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -eu
+          version="${TAG#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag $TAG is not a stable version like v1.2.3"
+            exit 1
+          fi
+          bundle="kubedrive-$version.mcpb"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$bundle" --dir "$RUNNER_TEMP"
+          sha=$(sha256sum "$RUNNER_TEMP/$bundle" | cut -d' ' -f1)
+          sed -e "s/@VERSION@/$version/g" -e "s/@SHA256@/$sha/" mcp/server.json > server.json
+          if grep -n '@[A-Z0-9_]*@' server.json; then echo "::error::Unfilled placeholder"; exit 1; fi
+          # The bundle the registry will point at is the one whose hash went in.
+          url=$(jq -r '.packages[0].identifier' server.json)
+          curl -fsSL -o "$RUNNER_TEMP/check.mcpb" "$url"
+          echo "$sha  $RUNNER_TEMP/check.mcpb" | sha256sum -c -
+          cat server.json
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Download and verify mcp-publisher
+        run: |
+          set -euo pipefail
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          base="https://github.com/modelcontextprotocol/registry/releases/download/$MCP_PUBLISHER_VERSION"
+          curl -fsSL -o "$archive" "$base/$archive"
+          curl -fsSL -o "$archive.sigstore.json" "$base/$archive.sigstore.json"
+          cosign verify-blob --bundle "$archive.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/$MCP_PUBLISHER_VERSION" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$archive"
+          tar xzf "$archive" mcp-publisher
+          rm -f "$archive" "$archive.sigstore.json"
+          ./mcp-publisher validate
+
+      - name: Publish to the MCP Registry
+        if: ${{ github.event_name == 'release' || !inputs.dry_run }}
+        run: |
+          set -eu
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
+          sleep 10
+          curl -fsS "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.aleksskoz/kubedrive" |
+            jq -e --arg v "$(jq -r .version server.json)" '.servers[] | select(.server.version == $v) | .server.name'
