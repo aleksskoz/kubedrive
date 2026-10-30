@@ -1,0 +1,989 @@
+[
+  {
+    "name": "list_clusters",
+    "title": "List clusters",
+    "description": "Kubernetes clusters (kubeconfig contexts) the user shared with agents in KubeDrive, with API server and default namespace.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "list_resource_types",
+    "title": "List resource types",
+    "description": "Resource types the cluster serves: type id, kind, whether namespaced. Use the ids with the other tools.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "filter": {
+          "type": "string",
+          "description": "substring of id or kind"
+        }
+      },
+      "required": [
+        "cluster"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "list_resources",
+    "title": "List resources",
+    "description": "Objects of a type, as kubectl get shows them (server-side columns), one per line.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "type": {
+          "type": "string",
+          "description": "resource type id: \"pods\", \"deployments.apps\", \"ingresses.networking.k8s.io\" (list_resource_types)"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "label_selector": {
+          "type": "string",
+          "description": "e.g. app=web,tier!=db"
+        },
+        "field_selector": {
+          "type": "string",
+          "description": "e.g. status.phase=Running"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2000,
+          "description": "default 500"
+        }
+      },
+      "required": [
+        "cluster",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "get_resource",
+    "title": "Get resource",
+    "description": "One object as YAML, without managedFields. Secret values are removed; credential-looking fields, env values and strings are masked (best effort).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "type": {
+          "type": "string",
+          "description": "resource type id: \"pods\", \"deployments.apps\", \"ingresses.networking.k8s.io\" (list_resource_types)"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "name": {
+          "type": "string",
+          "description": "object name"
+        }
+      },
+      "required": [
+        "cluster",
+        "type",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "get_events",
+    "title": "Get events",
+    "description": "Events of one object (type and name), or of a namespace (or all namespaces), newest first.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "type": {
+          "type": "string",
+          "description": "with name: events of that object"
+        },
+        "name": {
+          "type": "string",
+          "description": "object name"
+        },
+        "warnings_only": {
+          "type": "boolean"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "default 200"
+        }
+      },
+      "required": [
+        "cluster"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "get_logs",
+    "title": "Get pod logs",
+    "description": "The last lines of a pod's container log, with timestamps. Secret-looking values are redacted.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "pod": {
+          "type": "string"
+        },
+        "container": {
+          "type": "string",
+          "description": "needed when the pod has several"
+        },
+        "previous": {
+          "type": "boolean",
+          "description": "the log of the run before the last restart"
+        },
+        "tail_lines": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5000,
+          "description": "default 200"
+        },
+        "contains": {
+          "type": "string",
+          "description": "only lines containing this text"
+        }
+      },
+      "required": [
+        "cluster",
+        "namespace",
+        "pod"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "cluster_problems",
+    "title": "Cluster problems",
+    "description": "What needs attention, as KubeDrive's cluster overview shows it: failing pods and workloads, nodes not ready, failed Helm releases, and the last hour's warning events.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        }
+      },
+      "required": [
+        "cluster"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "top",
+    "title": "Resource usage",
+    "description": "CPU (millicores) and memory of pods or nodes from metrics-server, busiest first.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "pods",
+            "nodes"
+          ]
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "default 50"
+        }
+      },
+      "required": [
+        "cluster",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "check_access",
+    "title": "Check access",
+    "description": "Whether the user may do a verb on a type (kubectl auth can-i), by SelfSubjectAccessReview.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "verb": {
+          "type": "string",
+          "description": "get, list, watch, create, update, patch, delete…"
+        },
+        "type": {
+          "type": "string",
+          "description": "resource type id: \"pods\", \"deployments.apps\", \"ingresses.networking.k8s.io\" (list_resource_types)"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "name": {
+          "type": "string",
+          "description": "object name"
+        }
+      },
+      "required": [
+        "cluster",
+        "verb",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "diagnose",
+    "title": "Diagnose object",
+    "description": "Why an object is unhealthy, by KubeDrive's rules (no AI): each finding with severity, the cause, the evidence (cluster messages, the crashed container's last log lines) and a suggested fix. Types: pods, deployments.apps, statefulsets.apps, daemonsets.apps, replicasets.apps, jobs.batch, services, ingresses.networking.k8s.io, persistentvolumeclaims, nodes. Start here before reading logs and events by hand.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "type": {
+          "type": "string",
+          "description": "resource type id: \"pods\", \"deployments.apps\", \"ingresses.networking.k8s.io\" (list_resource_types)"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "name": {
+          "type": "string",
+          "description": "object name"
+        }
+      },
+      "required": [
+        "cluster",
+        "type",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "broken_links",
+    "title": "Broken links",
+    "description": "Links between objects that lead nowhere, as KubeDrive's map shows them: Ingress rules to a missing Service or port, Services that select no pods, pods that mount or read a ConfigMap, Secret or PVC that does not exist, autoscalers whose target is gone, disruption budgets that match no pods. Optional references are not judged, nor kinds the user may not list.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces (slower on big clusters)"
+        }
+      },
+      "required": [
+        "cluster"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "upgrade_check",
+    "title": "Upgrade check",
+    "description": "What breaks when the cluster moves to a newer Kubernetes minor version (KubeDrive Pro): Helm releases and kubectl-applied manifests that name removed API versions, clients still calling them, kinds removed with no successor, and nodes whose kubelet is too old. Each finding says what to write instead. Read only.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "target": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "the minor version of 1.x to check, e.g. 33 for 1.33; default the next one"
+        }
+      },
+      "required": [
+        "cluster"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "timeline",
+    "title": "Timeline",
+    "description": "What changed before it broke: one feed, newest first, of the cluster's events, rollouts (new ReplicaSet revisions with the image that changed), container restarts with exit codes, changes made through KubeDrive with who made them, Helm revisions and firing alerts. With type and name: that object and what it is joined to; without: the whole cluster. Start here for \"what happened\" and \"why did it break\". Windows beyond 1h need KubeDrive Pro.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "type": {
+          "type": "string",
+          "description": "resource type id: \"pods\", \"deployments.apps\", \"ingresses.networking.k8s.io\" (list_resource_types)"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "name": {
+          "type": "string",
+          "description": "object name"
+        },
+        "window": {
+          "type": "string",
+          "enum": [
+            "15m",
+            "1h",
+            "6h",
+            "24h",
+            "7d"
+          ],
+          "description": "how far back; default 1h"
+        },
+        "linked": {
+          "type": "boolean",
+          "description": "include the objects it is joined to (pods, Services, Ingresses, ConfigMaps, autoscaler); default true"
+        }
+      },
+      "required": [
+        "cluster"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "rightsizing",
+    "title": "Rightsizing",
+    "description": "Compares what the cluster's containers request with what they used, from Prometheus (KubeDrive Pro): workloads at risk (killed for memory, throttled by a CPU limit, no requests, using more than they request) and over-requested ones, each container with current and suggested requests and limits (CPU from the 95th percentile, memory from the highest use, plus the user's headroom). Read only; set resources with the edit tools.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "window": {
+          "type": "string",
+          "enum": [
+            "1d",
+            "7d",
+            "30d"
+          ],
+          "description": "how far back to look; default 7d"
+        }
+      },
+      "required": [
+        "cluster"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    }
+  },
+  {
+    "name": "apply",
+    "title": "Apply a manifest",
+    "description": "Changes an object to match the manifest (kubectl apply on one object): a server-side dry run first, then the user sees the diff in KubeDrive and allows or declines. The manifest is the whole object as get_resource returns it, edited; fields left out are removed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "type": {
+          "type": "string",
+          "description": "resource type id: \"pods\", \"deployments.apps\", \"ingresses.networking.k8s.io\" (list_resource_types)"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "name": {
+          "type": "string",
+          "description": "object name"
+        },
+        "reason": {
+          "type": "string",
+          "description": "why, in one line; the user sees it with the change"
+        },
+        "manifest": {
+          "type": "string",
+          "description": "the object's full YAML"
+        }
+      },
+      "required": [
+        "cluster",
+        "type",
+        "name",
+        "manifest"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    }
+  },
+  {
+    "name": "scale",
+    "title": "Scale a workload",
+    "description": "Sets the replicas of a Deployment, StatefulSet or ReplicaSet, after the user allows it in KubeDrive.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "type": {
+          "type": "string",
+          "description": "resource type id: \"pods\", \"deployments.apps\", \"ingresses.networking.k8s.io\" (list_resource_types)"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "name": {
+          "type": "string",
+          "description": "object name"
+        },
+        "reason": {
+          "type": "string",
+          "description": "why, in one line; the user sees it with the change"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "cluster",
+        "type",
+        "namespace",
+        "name",
+        "replicas"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    }
+  },
+  {
+    "name": "restart",
+    "title": "Restart a workload",
+    "description": "Rolls out new pods for a Deployment, StatefulSet or DaemonSet (kubectl rollout restart), after the user allows it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "type": {
+          "type": "string",
+          "description": "resource type id: \"pods\", \"deployments.apps\", \"ingresses.networking.k8s.io\" (list_resource_types)"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "name": {
+          "type": "string",
+          "description": "object name"
+        },
+        "reason": {
+          "type": "string",
+          "description": "why, in one line; the user sees it with the change"
+        }
+      },
+      "required": [
+        "cluster",
+        "type",
+        "namespace",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    }
+  },
+  {
+    "name": "rollback",
+    "title": "Roll back a workload",
+    "description": "Returns a Deployment, StatefulSet or DaemonSet to an earlier revision (kubectl rollout undo); without a revision, the previous one. The user allows it in KubeDrive.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "type": {
+          "type": "string",
+          "description": "resource type id: \"pods\", \"deployments.apps\", \"ingresses.networking.k8s.io\" (list_resource_types)"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "name": {
+          "type": "string",
+          "description": "object name"
+        },
+        "reason": {
+          "type": "string",
+          "description": "why, in one line; the user sees it with the change"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "omit for the previous revision"
+        }
+      },
+      "required": [
+        "cluster",
+        "type",
+        "namespace",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    }
+  },
+  {
+    "name": "delete",
+    "title": "Delete an object",
+    "description": "Deletes one object after the user allows it in KubeDrive; namespaces and cluster-scoped objects always need the name typed by the user.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "type": {
+          "type": "string",
+          "description": "resource type id: \"pods\", \"deployments.apps\", \"ingresses.networking.k8s.io\" (list_resource_types)"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "name": {
+          "type": "string",
+          "description": "object name"
+        },
+        "reason": {
+          "type": "string",
+          "description": "why, in one line; the user sees it with the change"
+        },
+        "propagation": {
+          "type": "string",
+          "enum": [
+            "background",
+            "foreground",
+            "orphan"
+          ]
+        },
+        "force": {
+          "type": "boolean",
+          "description": "no grace period"
+        }
+      },
+      "required": [
+        "cluster",
+        "type",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    }
+  },
+  {
+    "name": "cordon",
+    "title": "Cordon a node",
+    "description": "Marks a node unschedulable, after the user allows it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "why, in one line; the user sees it with the change"
+        },
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "node": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cluster",
+        "node"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    }
+  },
+  {
+    "name": "uncordon",
+    "title": "Uncordon a node",
+    "description": "Marks a node schedulable again, after the user allows it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "why, in one line; the user sees it with the change"
+        },
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "node": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cluster",
+        "node"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    }
+  },
+  {
+    "name": "drain",
+    "title": "Drain a node",
+    "description": "Cordons a node and evicts its pods (kubectl drain; DaemonSet pods stay), after the user allows it. Pods with emptyDir volumes or without a controller are skipped unless the options say otherwise.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "why, in one line; the user sees it with the change"
+        },
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "node": {
+          "type": "string"
+        },
+        "delete_emptydir_data": {
+          "type": "boolean"
+        },
+        "force": {
+          "type": "boolean",
+          "description": "also evict pods no controller will recreate"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 600
+        }
+      },
+      "required": [
+        "cluster",
+        "node"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    }
+  },
+  {
+    "name": "trigger_cronjob",
+    "title": "Run a CronJob now",
+    "description": "Creates a Job from a CronJob right away, after the user allows it; returns the Job's name.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "why, in one line; the user sees it with the change"
+        },
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "name": {
+          "type": "string",
+          "description": "object name"
+        }
+      },
+      "required": [
+        "cluster",
+        "namespace",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    }
+  },
+  {
+    "name": "port_forward",
+    "title": "Open a port forward",
+    "description": "Forwards a local port on this computer to a pod, service or workload, after the user allows it; returns the local port and the forward's id (port_forward_stop closes it). The forward stays open until stopped or KubeDrive quits.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "type": {
+          "type": "string",
+          "description": "resource type id: \"pods\", \"deployments.apps\", \"ingresses.networking.k8s.io\" (list_resource_types)"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "name": {
+          "type": "string",
+          "description": "object name"
+        },
+        "reason": {
+          "type": "string",
+          "description": "why, in one line; the user sees it with the change"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "the port in the pod or service"
+        },
+        "local_port": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "omit for a free one"
+        }
+      },
+      "required": [
+        "cluster",
+        "type",
+        "namespace",
+        "name",
+        "port"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    }
+  },
+  {
+    "name": "port_forward_stop",
+    "title": "Close a port forward",
+    "description": "Closes a port forward opened by port_forward, by its id. No confirmation.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    }
+  },
+  {
+    "name": "exec",
+    "title": "Run a command in a container",
+    "description": "Runs one command (an argument list, no shell) in a container without a terminal, after the user allows it: stdout, stderr and the exit code come back, each output cut at 256 KB. Up to 60 seconds.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "why, in one line; the user sees it with the change"
+        },
+        "cluster": {
+          "type": "string",
+          "description": "kubeconfig context name, from list_clusters"
+        },
+        "namespace": {
+          "type": "string",
+          "description": "namespace; empty for all namespaces or cluster-scoped types"
+        },
+        "pod": {
+          "type": "string"
+        },
+        "container": {
+          "type": "string",
+          "description": "needed when the pod has several"
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "description": "the program and its arguments, e.g. [\"nginx\",\"-T\"]"
+        }
+      },
+      "required": [
+        "cluster",
+        "namespace",
+        "pod",
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    }
+  }
+]

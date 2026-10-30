@@ -18,8 +18,9 @@ MCP server that lets AI agents work on your clusters without a kubeconfig.
 
 ![The KubeDrive window: the sidebar with the cluster card and the Workloads section, the pods table of two namespaces, and the details panel of a crashing pod with its diagnosis](assets/kubedrive-window.png)
 
-This repository hosts KubeDrive releases, the issue tracker and the [benchmarks](benchmarks).
-The source code is not public.
+This repository hosts KubeDrive releases, the issue tracker, the [benchmarks](benchmarks) and
+the source of the [MCP bridge](mcp) (`kubedrive-mcp`, Apache-2.0), the one open part of
+KubeDrive. The app itself is closed source.
 
 ## Why KubeDrive
 
