@@ -5,7 +5,7 @@ PackageVersion: @VERSION@
 InstallerType: nullsoft
 Scope: machine
 ElevationRequirement: elevatesSelf
-UpgradeBehavior: install
+UpgradeBehavior: uninstallPrevious
 Protocols:
 - kubedrive
 ProductCode: AKStudioKubeDrive
