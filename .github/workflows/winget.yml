@@ -120,10 +120,17 @@ jobs:
               git rm -rq --ignore-unmatch "$dir"
               mkdir -p "$dir" && cp -R "$MANIFESTS" "$dir/$VERSION"
               git add "$dir"
-              git -c user.name="$login" -c user.email="$id+$login@users.noreply.github.com" \
-                commit --quiet -m "$title"
-              git push --quiet origin "HEAD:$branch"
-              gh pr edit "$number" --repo microsoft/winget-pkgs --title "$title"
+              # A run that pushed and then failed leaves the branch at this
+              # version with the old title: then only the title is left to do.
+              if git diff --cached --quiet; then
+                echo "$branch already carries $VERSION"
+              else
+                git -c user.name="$login" -c user.email="$id+$login@users.noreply.github.com" \
+                  commit --quiet -m "$title"
+                git push --quiet origin "HEAD:$branch"
+              fi
+              # REST, not `gh pr edit`: its GraphQL query needs read:org.
+              gh api -X PATCH "repos/microsoft/winget-pkgs/pulls/$number" -f title="$title" --silent
               echo "$url now has $VERSION"
               exit 0
             fi
