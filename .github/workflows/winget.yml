@@ -93,14 +93,18 @@ jobs:
           fi
           # Not in winget yet, and a "New package" pull request is open: put this
           # version on its branch in place of the one there.
+          # The token has public_repo only: the account comes from REST, and the
+          # pull request's fork is that account's (asking GraphQL for the head
+          # repository's owner needs read:org).
+          login=$(gh api user -q .login) id=$(gh api user -q .id)
           if ! gh api repos/microsoft/winget-pkgs/contents/manifests/a/AKStudio/KubeDrive --silent 2>/dev/null; then
-            pr=$(gh pr list --repo microsoft/winget-pkgs --author @me --state open \
+            pr=$(gh pr list --repo microsoft/winget-pkgs --author "$login" --state open \
               --search 'New package: AKStudio.KubeDrive in:title' \
-              --json number,headRefName,headRepositoryOwner,title \
+              --json number,headRefName,title \
               -q '[.[] | select(.title | startswith("New package: AKStudio.KubeDrive version "))][0] // empty')
             if [ -n "$pr" ]; then
               number=$(jq -r .number <<<"$pr") branch=$(jq -r .headRefName <<<"$pr")
-              owner=$(jq -r .headRepositoryOwner.login <<<"$pr")
+              owner=$login
               title="New package: AKStudio.KubeDrive version $VERSION"
               url="https://github.com/microsoft/winget-pkgs/pull/$number"
               if [ "$(jq -r .title <<<"$pr")" = "$title" ]; then
@@ -116,7 +120,6 @@ jobs:
               git rm -rq --ignore-unmatch "$dir"
               mkdir -p "$dir" && cp -R "$MANIFESTS" "$dir/$VERSION"
               git add "$dir"
-              login=$(gh api user -q .login) id=$(gh api user -q .id)
               git -c user.name="$login" -c user.email="$id+$login@users.noreply.github.com" \
                 commit --quiet -m "$title"
               git push --quiet origin "HEAD:$branch"
